@@ -1,0 +1,99 @@
+/* ******************************************************************************** */
+/* Local TU_DATABASE_CONNECTION:JTDS:ConnectionManager &ConnectionManager = create_ */
+/* TU_DATABASE_CONNECTION:JTDS:ConnectionManager();                                 */
+/* &ConnectionManager.Server = &server;                                             */
+/* &ConnectionManager.Port = &port;                                                 */
+/* &ConnectionManager.Database = &dbname;                                           */
+/* &ConnectionManager.UserName = &userid;                                           */
+/* &ConnectionManager.Password = &userpswd;                                         */
+/* &ConnectionManager.PasswordEncrypted = True;                                     */
+/* &ConnectionManager.LoggingLevel = 50;                                            */
+/*                                                                                  */
+/* Local JavaObject &objSQLConnection, &objSQLStatement, &objSQLResults             */
+/* &objSQLConnection = &ConnectionManager.DefaultConnection                         */
+/* &objSQLStatement = &objSQLConnection.createStatement();                          */
+/* &sqlString = "SELECT dbo.Environments.environmentName from dbo.Environments";    */
+/* &objSQLResults = &objSQLStatement.executeQuery(&sqlString);                      */
+/* While &objSQLResults.next()                                                      */
+/*                                                                                  */
+/*                                                                                  */
+/* Downside is I return everything as an object. There is no implicit conversion to */
+/* anything but a string so all columnvalues are returned as strings. You can       */
+/* evaluate the columntype which will allow you to appropriately handle the data.   */
+/* Data                                                                             */
+/* &columnvalue = &objKronosResults.getObject(&J).toString();                       */
+/*                                                                                  */
+/* DateTime Fields                                                                  */
+/* If &columnType = 93 Then                                                         */
+/*   &columnvalue = Substring(&objKronosResults.getObject(&J).toString(), 1, _      */
+/*                  Find(".0", &objKronosResults.getObject(&J).toString(), 1) - 1); */
+/* End-If;                                                                          */
+/*                                                                                  */
+/* Columnname                                                                       */
+/* If &columnname = "TIMEINSECONDS" Then                                            */
+/*   &columnvalue = String(Round(Value(&objKronosResults.getObject(&J).toString())  */
+/*                  / 3600, 2));                                                    */
+/* End-If;                                                                          */
+/* ******************************************************************************** */
+class ConnectionManager
+   property JavaObject DriverManager;
+   property JavaObject JTDS;
+   property JavaObject DefaultConnection get;
+   property string Server;
+   property string Port;
+   property string Database;
+   property string UserName;
+   property string Password;
+   property boolean PasswordEncrypted;
+   property number LoggingLevel;
+   
+   method ConnectionManager();
+   method OpenConnection() Returns JavaObject;
+   method DisplayMessage(&level As number, &message As string);
+   
+end-class;
+
+method ConnectionManager
+   %This.DriverManager = GetJavaClass("java.sql.DriverManager");
+   %This.JTDS = GetJavaClass("net.sourceforge.jtds.jdbc.Driver");
+   %This.PasswordEncrypted = False;
+   %This.LoggingLevel = 0;
+end-method;
+
+method OpenConnection
+   /+ Returns JavaObject +/
+   Local string &connection_string;
+   Local JavaObject &objSQLSysConnection;
+   
+   If %This.PasswordEncrypted Then
+      %This.Password = Decrypt("", %This.Password);
+   End-If;
+   
+   &connection_string = "jdbc:jtds:sqlserver://" | %This.Server | ":" | %This.Port | "/" | %This.Database;
+   
+   try
+      &objSQLSysConnection = %This.DriverManager.getConnection(CreateJavaObject("java.lang.String", &connection_string), CreateJavaObject("java.lang.String", %This.UserName), CreateJavaObject("java.lang.String", %This.Password));
+      If None(&objSQLSysConnection) Then
+         %This.DisplayMessage(5, "Error opening &objSQLSysConnection: " | &connection_string);
+      End-If;
+      
+   catch Exception &exOpenConnection
+      %This.DisplayMessage(50, "&exOpenConnection: " | &exOpenConnection.ToString());
+   end-try;
+   
+   Return &objSQLSysConnection;
+   
+end-method;
+
+method DisplayMessage
+   /+ &level as Number, +/
+   /+ &message as String +/
+   If &level >= %This.LoggingLevel Then
+      MessageBox(0, "", 0, 0, &message);
+   End-If;
+end-method;
+
+get DefaultConnection
+   /+ Returns JavaObject +/
+   Return %This.OpenConnection();
+end-get;
